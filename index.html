@@ -9,6 +9,9 @@
 <meta property="og:title" content="윤혁과 미숙의 결혼에 초대합니다" />
 <meta property="og:description" content="2026.10.10 (토) 11:30 · 서귀포농협 하나로마트 웨딩홀" />
 <meta property="og:image" content="https://lh3.googleusercontent.com/d/1GyZu3lYn0Rwsiw2_cKVHznHEOaLWrjfy" />
+<!-- 대표이미지(드라이브)·백엔드 연결을 미리 준비해 로딩 지연 단축 -->
+<link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin />
+<link rel="preconnect" href="https://script.google.com" />
 <style>
   @font-face{
     font-family:'NotoSerifKR-Embed';
@@ -374,6 +377,24 @@
   .share-btn.ghost{background:#fff;color:var(--ink);}
   .share-hint{font-size:11px;color:#b8b2a6;margin:14px 0 0;letter-spacing:0.02em;}
 
+  /* ---------- gallery prev/next (데스크톱 클릭 넘김) ---------- */
+  .gallery-viewport{position:relative;}
+  .gal-nav{
+    position:absolute;top:50%;transform:translateY(-50%);z-index:5;
+    width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,0.5);
+    background:rgba(27,27,27,0.42);color:#fff;font-size:22px;line-height:1;padding:0 0 3px;
+    display:none;align-items:center;justify-content:center;cursor:pointer;
+    -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);transition:background .2s ease,opacity .2s ease;
+  }
+  .gal-nav:hover{background:rgba(27,27,27,0.66);}
+  .gal-nav.prev{left:14px;}
+  .gal-nav.next{right:14px;}
+  .gal-nav:disabled{opacity:0.28;cursor:default;}
+  /* 마우스(hover) 기기 = 데스크톱에서만 화살표 노출. 터치 기기는 스와이프 사용 */
+  @media (hover:hover) and (pointer:fine){
+    #gallery.has-photos .gal-nav{display:flex;}
+  }
+
   /* ---------- admin: 서버 상태/안내 ---------- */
   .admin-note{
     font-size:12px;line-height:1.7;color:var(--muted);
@@ -382,7 +403,35 @@
   .admin-note b{color:var(--ink-soft);}
   .media-hint{font-size:11.5px;color:var(--muted);margin:6px 0 0;line-height:1.6;}
   .thumb-admin-preview{width:100%;max-width:240px;height:126px;object-fit:cover;border-radius:6px;display:block;margin-bottom:12px;background:#eee;}
+
+  /* ---------- 로딩 스플래시(첫 화면 로딩 시간 확보) ---------- */
+  .splash{
+    position:fixed;inset:0;z-index:1000;background:var(--paper);
+    display:flex;align-items:center;justify-content:center;
+    opacity:1;transition:opacity .6s ease;
+  }
+  .splash.hide{opacity:0;pointer-events:none;}
+  .splash-inner{text-align:center;padding:0 34px;max-width:360px;width:100%;}
+  .splash-eyebrow{font-family:var(--script-en);font-size:23px;color:var(--muted);margin:0 0 16px;letter-spacing:.05em;}
+  .splash-title{font-family:var(--serif-kr);font-weight:700;font-size:21px;line-height:1.75;color:var(--ink);margin:0 0 34px;letter-spacing:.02em;}
+  .splash-bar{width:200px;height:3px;margin:0 auto 12px;background:var(--line);border-radius:99px;overflow:hidden;}
+  .splash-bar > span{display:block;height:100%;width:0%;background:var(--ink);border-radius:99px;}
+  .splash-pct{font-family:var(--sans-kr);font-size:12px;letter-spacing:.1em;color:var(--muted);margin:0;}
 </style>
+
+<!-- 로딩 스플래시: 대표이미지가 준비될 때까지 진행바(0→100%)로 자연스럽게 대기 -->
+<div class="splash" id="splash">
+  <div class="splash-inner">
+    <p class="splash-eyebrow">The Wedding of</p>
+    <h1 class="splash-title">윤혁과 미숙의<br/>결혼식에 초대합니다</h1>
+    <div class="splash-bar"><span id="splashFill"></span></div>
+    <p class="splash-pct" id="splashPct">0%</p>
+  </div>
+</div>
+<script>
+  /* 안전장치: 메인 스크립트가 어떤 이유로 실행되지 않아도 7초 뒤 스플래시를 반드시 걷어낸다 */
+  setTimeout(function(){ var s=document.getElementById('splash'); if(s) s.classList.add('hide'); }, 7000);
+</script>
 
 <div class="stage">
   <div class="device" id="device">
@@ -418,7 +467,11 @@
 
       <section id="gallery" class="reveal">
         <p class="eyebrow section-title">Our Story</p>
-        <div class="gallery-track" id="galleryTrack"></div>
+        <div class="gallery-viewport">
+          <div class="gallery-track" id="galleryTrack"></div>
+          <button type="button" class="gal-nav prev" id="galPrev" aria-label="이전 사진">&#8249;</button>
+          <button type="button" class="gal-nav next" id="galNext" aria-label="다음 사진">&#8250;</button>
+        </div>
         <div class="gallery-dots" id="galleryDots"></div>
       </section>
 
@@ -626,7 +679,7 @@
      ============================================================ */
   var GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbyRyknMpIHLXnOhSmO1oTqWQl6PHBZVSeEzz8aZisckFM7QLDAu_GN3Iyr2NQ9L1Cm3Hg/exec';   // 예: https://script.google.com/macros/s/AKfy.../exec
   var BGM_SRC = 'assets/bgm.mp3';                            // 정적 배경음악(저장소에 포함, EdgeOne CDN 제공)
-  var BUILD_ID = '2026-07-17-gas-1';                         // 캐시된 구버전 판별용 빌드 식별자
+  var BUILD_ID = '2026-07-17-gas-3';                         // 캐시된 구버전 판별용 빌드 식별자
 
   var endpointReady = GAS_ENDPOINT.indexOf('http') === 0;   // 아직 URL을 안 넣었으면 false
 
@@ -641,11 +694,13 @@
     venueAddress:"제주 서귀포시 516로 40-1, 3층",
     transport:{
       car:"예식장 내 주차장을 이용하실 수 있습니다. 하나로마트 이용 고객과 주차 공간을 함께 사용하므로 예식 시간대에는 다소 혼잡할 수 있으니 여유 있게 도착해 주세요.",
-      transit:"제주 시내버스 이용 시 '비석거리' 정류장에서 하차 후 도보로 이동하실 수 있습니다. 정확한 노선과 소요 시간은 카카오맵·네이버지도의 대중교통 길찾기를 이용해 주세요.",
-      airport:"제주국제공항에서 예식장까지 차량으로 약 1시간~1시간 10분 정도 소요됩니다(교통 상황에 따라 변동). 공항에서 서귀포 방면 리무진버스 또는 시외버스로 이동하신 후 택시로 환승하시는 방법을 추천드립니다."
+      transit:"제주 시내버스 이용 시 '답다니' 정류장에서 하차 후 도보로 이동하실 수 있습니다. 정확한 노선과 소요 시간은 카카오맵·네이버지도의 대중교통 길찾기를 이용해 주세요.",
+      airport:"제주국제공항에서 예식장까지 차량으로 약 1시간~1시간 10분 정도 소요됩니다. [GATE 2]로 나오신 뒤 516방면으로 가는 정류장에서 181번 승차 — '국민연금공단 서귀포지사' 정류장 하차하시면 도보로 이동 가능합니다."
     },
     accounts:[
-      {side:"groom",label:"신랑 박윤혁",bank:"농협",holder:"박윤혁",number:"302-0621-7625-31"}
+      {side:"groom",label:"신랑",bank:"제주은행",holder:"박윤혁",number:"20-02-442167"},
+      {side:"groom",label:"신랑 부",bank:"농협",holder:"박경택",number:"979-02-316294"},
+      {side:"groom",label:"신랑 모",bank:"농협",holder:"우희란",number:"388-12-019785"}
     ],
     coverImage:"",      // Drive 대표사진 URL (서버가 채움)
     coverFileId:"",
@@ -728,18 +783,30 @@
   }
 
   // 2단계 로드의 2단계: 서버 데이터가 있으면 덮어쓰고 재렌더.
-  function syncFromServer(){
+  function syncFromServer(splash){
+    var reveal = function(){ if(splash) splash.markReady(); };
+    // 대표이미지(드라이브)를 미리 로드해, 실제로 보일 준비가 됐을 때 스플래시를 닫는다.
+    var preloadCover = function(url){
+      if(!url){ reveal(); return; }
+      var img = new Image();
+      img.onload = reveal;
+      img.onerror = reveal;   // 실패해도 스플래시가 멈추지 않도록
+      img.src = url;
+    };
     if(!endpointReady){
       remoteSyncFailed = true;
       console.warn('GAS_ENDPOINT 가 설정되지 않았습니다. 임베드 기본값으로만 표시합니다.');
+      reveal();
       return;
     }
     apiGet().then(function(remote){
       mergeRemote(DATA, remote);
       renderAll();
+      preloadCover(DATA.coverImage);
     }).catch(function(e){
       remoteSyncFailed = true;
       console.error('원격 데이터 동기화 실패 — 임베드 기본값으로 표시합니다.', e);
+      reveal();
     });
   }
 
@@ -789,9 +856,47 @@
   }
 
   var galleryScrollBound = false;
+  // 현재 화면 중앙에 가장 가까운 슬라이드 인덱스(없으면 -1)
+  function currentGalleryIndex(){
+    var track = document.getElementById('galleryTrack');
+    var slides = track.querySelectorAll('.gallery-slide');
+    if(!slides.length) return -1;
+    var trackRect = track.getBoundingClientRect();
+    var center = trackRect.left + trackRect.width / 2;
+    var closest = 0, closestDist = Infinity;
+    slides.forEach(function(s, i){
+      var r = s.getBoundingClientRect();
+      var dist = Math.abs((r.left + r.width/2) - center);
+      if(dist < closestDist){ closestDist = dist; closest = i; }
+    });
+    return closest;
+  }
+
+  // 데스크톱 화살표(‹ ›)로 한 장씩 넘기기 — 부드럽게 해당 슬라이드를 중앙 정렬
+  function galleryStep(dir){
+    var track = document.getElementById('galleryTrack');
+    var slides = track.querySelectorAll('.gallery-slide');
+    if(!slides.length) return;
+    var cur = currentGalleryIndex();
+    var next = Math.min(slides.length - 1, Math.max(0, cur + dir));
+    slides[next].scrollIntoView({behavior:'smooth', inline:'center', block:'nearest'});
+  }
+
+  // 양 끝에서 화살표 비활성화
+  function updateGalleryArrows(){
+    var prev = document.getElementById('galPrev');
+    var next = document.getElementById('galNext');
+    if(!prev || !next) return;
+    var n = document.getElementById('galleryTrack').querySelectorAll('.gallery-slide').length;
+    var cur = currentGalleryIndex();
+    prev.disabled = (n === 0 || cur <= 0);
+    next.disabled = (n === 0 || cur >= n - 1);
+  }
+
   function renderGallery(){
     var track = document.getElementById('galleryTrack');
     var dots = document.getElementById('galleryDots');
+    var section = document.getElementById('gallery');
     var imgs = DATA.gallery || [];
     var existingEmpty = track.parentNode.querySelector('.gallery-empty');
     if(existingEmpty) existingEmpty.remove();
@@ -801,9 +906,12 @@
       var empty = document.createElement('p');
       empty.className = 'gallery-empty';
       empty.textContent = '사진이 곧 채워질 예정입니다.';
-      track.parentNode.insertBefore(empty, dots);
+      track.parentNode.appendChild(empty);   // 뷰포트 안에 표시(래퍼 구조 대응)
+      section.classList.remove('has-photos');
+      updateGalleryArrows();
       return;
     }
+    section.classList.add('has-photos');
     track.innerHTML = imgs.map(function(img){
       return '<div class="gallery-slide"><img src="' + escapeHtml(img.src) + '" alt="wedding photo" loading="lazy" /></div>';
     }).join('');
@@ -813,6 +921,9 @@
 
     if(!galleryScrollBound){
       galleryScrollBound = true;
+      // 화살표 클릭(데스크톱): 이전/다음 사진으로 넘김
+      document.getElementById('galPrev').addEventListener('click', function(){ galleryStep(-1); });
+      document.getElementById('galNext').addEventListener('click', function(){ galleryStep(1); });
       var ticking = false;
       track.addEventListener('scroll', function(){
         if(ticking) return;
@@ -829,10 +940,12 @@
             if(dist < closestDist){ closestDist = dist; closest = i; }
           });
           dotEls.forEach(function(dt, i){ dt.classList.toggle('active', i === closest); });
+          updateGalleryArrows();
           ticking = false;
         });
       });
     }
+    updateGalleryArrows();
   }
 
   function renderCalendar(){
@@ -1456,11 +1569,55 @@
     setTimeout(function(){ renderCalendar(); scheduleDdayRefresh(); }, ms);
   }
 
+  /* ---------- 로딩 스플래시 ----------
+     대표이미지가 드라이브에서 도착하기까지의 공백(2~3초)을 진행바로 자연스럽게 덮는다.
+     · 준비 전에는 90%까지 서서히 차오르고, 대표이미지가 로드되면 100%로 채운 뒤 사라진다.
+     · 이미지가 끝내 안 와도 MAX_MS 후 반드시 사라진다(하객 화면 보호). */
+  function initSplash(){
+    var splash = document.getElementById('splash');
+    var fill = document.getElementById('splashFill');
+    var pctEl = document.getElementById('splashPct');
+    if(!splash || !fill || !pctEl) return { markReady: function(){} };
+
+    var MIN_MS = 1500;   // 최소 노출(진행 애니메이션이 자연스럽게 완성되는 시간)
+    var MAX_MS = 6000;   // 이미지가 끝내 안 와도 반드시 닫는 상한
+    var startedAt = Date.now();
+    var ready = false;   // 대표이미지 로드 완료(또는 없음/실패)
+    var finished = false;
+    var pct = 0;
+
+    function stepFrame(){
+      if(finished) return;
+      var elapsed = Date.now() - startedAt;
+      var ceiling = ready ? 100 : 90;
+      var timeBased = Math.min(ceiling, (elapsed / MIN_MS) * 100);
+      if(timeBased > pct) pct = timeBased;
+      if(ready) pct = Math.min(100, pct + 2.4);   // 준비되면 빠르게 100%로
+      var shown = Math.min(100, Math.round(pct));
+      fill.style.width = shown + '%';
+      pctEl.textContent = shown + '%';
+      if((ready && elapsed >= MIN_MS && shown >= 100) || elapsed >= MAX_MS){ finish(); return; }
+      requestAnimationFrame(stepFrame);
+    }
+    function finish(){
+      if(finished) return; finished = true;
+      fill.style.width = '100%'; pctEl.textContent = '100%';
+      setTimeout(function(){
+        splash.classList.add('hide');   // 부드럽게 사라짐(opacity)
+        setTimeout(function(){ if(splash.parentNode) splash.parentNode.removeChild(splash); }, 650);
+      }, 160);
+    }
+    requestAnimationFrame(stepFrame);
+    setTimeout(finish, MAX_MS + 300);   // 이중 안전장치
+    return { markReady: function(){ ready = true; } };
+  }
+
   /* ---------- init ---------- */
   document.addEventListener('DOMContentLoaded', function(){
     document.getElementById('buildId').textContent = 'build ' + BUILD_ID;
+    var splash = initSplash();   // 로딩 스플래시 시작(대표이미지 준비되면 닫힘)
     renderAll();          // 1단계: 임베드 기본값으로 즉시 렌더
-    syncFromServer();     // 2단계: 서버(Sheet/Drive) 데이터로 덮어쓰고 재렌더
+    syncFromServer(splash);     // 2단계: 서버 데이터 + 대표이미지 로드 후 스플래시 닫기
     initReveal();
     initAccordion();
     initCopyButtons();
