@@ -377,6 +377,32 @@
   .share-btn.ghost{background:#fff;color:var(--ink);}
   .share-hint{font-size:11px;color:#b8b2a6;margin:14px 0 0;letter-spacing:0.02em;}
 
+  /* ---------- 공유 대체 시트(navigator.share 미지원 환경: 주로 인앱 브라우저) ---------- */
+  .share-sheet-overlay{
+    position:fixed;inset:0;z-index:500;background:rgba(15,15,15,0.5);
+    display:flex;align-items:flex-end;justify-content:center;
+  }
+  .share-sheet-overlay.hidden{display:none;}
+  .share-sheet{
+    background:#fff;width:100%;max-width:430px;border-radius:16px 16px 0 0;
+    padding:22px 22px calc(22px + env(safe-area-inset-bottom,0px));
+    box-shadow:0 -10px 40px rgba(0,0,0,0.2);
+  }
+  .share-sheet-title{font-family:var(--serif-kr);font-size:16px;text-align:center;margin:0 0 16px;color:var(--ink);}
+  .share-sheet-btn{
+    display:flex;align-items:center;gap:12px;width:100%;padding:14px 16px;margin-bottom:9px;
+    border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);
+    font-family:inherit;font-size:14px;cursor:pointer;text-align:left;
+  }
+  .share-sheet-btn:active{background:var(--paper-deep);}
+  .share-sheet-btn svg{flex-shrink:0;color:var(--ink-soft);}
+  .share-sheet-note{font-size:11.5px;line-height:1.7;color:var(--muted);margin:12px 2px 14px;}
+  .share-sheet-note b{color:var(--ink-soft);}
+  .share-sheet-close{
+    width:100%;padding:13px;border:none;border-radius:10px;background:var(--ink);color:#fff;
+    font-family:inherit;font-size:13.5px;cursor:pointer;
+  }
+
   /* ---------- gallery prev/next (데스크톱 클릭 넘김) ---------- */
   .gallery-viewport{position:relative;}
   .gal-nav{
@@ -551,6 +577,23 @@
   </div>
 </div>
 
+<!-- 공유 대체 시트: navigator.share 미지원 환경(주로 카카오톡/인스타 인앱 브라우저)에서 노출 -->
+<div class="share-sheet-overlay hidden" id="shareSheet">
+  <div class="share-sheet">
+    <p class="share-sheet-title">청첩장 공유하기</p>
+    <button type="button" class="share-sheet-btn" id="shareSms">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+      문자 메시지로 보내기
+    </button>
+    <button type="button" class="share-sheet-btn" id="shareCopy2">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      링크 복사하기
+    </button>
+    <p class="share-sheet-note">카카오톡·인스타그램으로 보내시려면 <b>링크 복사</b> 후 붙여넣거나, 브라우저 우측 상단 메뉴(⋮ · 공유)를 이용해 주세요.</p>
+    <button type="button" class="share-sheet-close" id="shareSheetClose">닫기</button>
+  </div>
+</div>
+
 <!-- password modal -->
 <div class="overlay hidden" id="pwModal">
   <div class="pw-box">
@@ -679,7 +722,7 @@
      ============================================================ */
   var GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbyRyknMpIHLXnOhSmO1oTqWQl6PHBZVSeEzz8aZisckFM7QLDAu_GN3Iyr2NQ9L1Cm3Hg/exec';   // 예: https://script.google.com/macros/s/AKfy.../exec
   var BGM_SRC = 'assets/bgm.mp3';                            // 정적 배경음악(저장소에 포함, EdgeOne CDN 제공)
-  var BUILD_ID = '2026-07-17-gas-3';                         // 캐시된 구버전 판별용 빌드 식별자
+  var BUILD_ID = '2026-07-17-gas-4';                         // 캐시된 구버전 판별용 빌드 식별자
 
   var endpointReady = GAS_ENDPOINT.indexOf('http') === 0;   // 아직 URL을 안 넣었으면 false
 
@@ -1097,17 +1140,44 @@
     var url = location.href.split('#')[0];
     var title = DATA.groom.name + ' · ' + DATA.bride.name + ' 결혼식에 초대합니다';
     var text = formatDateTimeKR(parseWeddingDate()) + ' · ' + DATA.venueName;
+    var sheet = document.getElementById('shareSheet');
+
+    function openSheet(){ if(sheet) sheet.classList.remove('hidden'); }
+    function closeSheet(){ if(sheet) sheet.classList.add('hidden'); }
 
     document.getElementById('shareBtn').addEventListener('click', function(){
-      // 모바일: OS 공유 시트(카카오톡·인스타DM·문자 등). 미지원(주로 PC): 링크 복사로 폴백.
-      if(navigator.share){
-        navigator.share({title: title, text: text, url: url}).catch(function(){});
-      }else{
-        copyText(url).then(function(ok){
-          showToast(ok ? '링크가 복사되었습니다. 붙여넣어 공유해 주세요.' : '링크 복사에 실패했습니다');
+      var payload = {title: title, text: text, url: url};
+      // 1순위: OS 네이티브 공유 시트(카카오톡·인스타DM·문자 등 모두 표시).
+      if(navigator.share && (!navigator.canShare || navigator.canShare(payload))){
+        navigator.share(payload).catch(function(err){
+          // 사용자가 공유창을 닫은 경우(취소)는 무시. 그 외 실패는 대체 메뉴로.
+          if(err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return;
+          openSheet();
         });
+      }else{
+        // 공유 시트 미지원(주로 카카오톡/인스타 인앱 브라우저) → 대체 메뉴 노출.
+        openSheet();
       }
     });
+
+    // 대체 시트 동작: 문자 보내기 / 링크 복사 / 닫기
+    var smsBtn = document.getElementById('shareSms');
+    if(smsBtn) smsBtn.addEventListener('click', function(){
+      var body = title + '\n' + text + '\n' + url;
+      // sms: 스킴(iOS·안드로이드 호환 형태). 인앱 브라우저도 대개 문자앱으로 넘겨준다.
+      window.location.href = 'sms:?&body=' + encodeURIComponent(body);
+    });
+    var copy2Btn = document.getElementById('shareCopy2');
+    if(copy2Btn) copy2Btn.addEventListener('click', function(){
+      copyText(url).then(function(ok){
+        showToast(ok ? '링크가 복사되었습니다. 카카오톡 등에 붙여넣어 주세요.' : '링크 복사에 실패했습니다');
+        closeSheet();
+      });
+    });
+    var sheetCloseBtn = document.getElementById('shareSheetClose');
+    if(sheetCloseBtn) sheetCloseBtn.addEventListener('click', closeSheet);
+    if(sheet) sheet.addEventListener('click', function(e){ if(e.target === sheet) closeSheet(); });
+
     document.getElementById('copyLinkBtn').addEventListener('click', function(){
       copyText(url).then(function(ok){
         showToast(ok ? '링크가 복사되었습니다' : '링크 복사에 실패했습니다');
