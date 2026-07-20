@@ -763,7 +763,11 @@
   // 카카오톡 공유(선택): developers.kakao.com 에서 발급한 JavaScript 키를 넣으면
   // '카카오톡으로 공유하기' 버튼이 나타나고 모든 브라우저(카톡 인앱 포함)에서 동작한다.
   var KAKAO_JS_KEY = '006d47ca83fbed0126c0f41ff42ad496';
-  var BUILD_ID = '2026-07-17-gas-5';                         // 캐시된 구버전 판별용 빌드 식별자
+  // 공유(카카오톡·문자·복사)에 사용할 '실제 라이브 주소'.
+  // ⚠️ 카카오 개발자 콘솔 [제품 링크 관리]에 등록한 도메인과 반드시 일치해야 링크가 열립니다.
+  //    (비워두면 현재 열려 있는 주소 location.href 를 사용)
+  var SITE_URL = 'https://m-wedding.edgeone.dev/';
+  var BUILD_ID = '2026-07-20-gas-6';                         // 캐시된 구버전 판별용 빌드 식별자
 
   var endpointReady = GAS_ENDPOINT.indexOf('http') === 0;   // 아직 URL을 안 넣었으면 false
 
@@ -1279,12 +1283,17 @@
       if(b2) b2.style.display = 'flex';
     }catch(e){ console.error('Kakao init 실패', e); }
   }
+  // 공유에 쓸 링크: SITE_URL(고정 라이브 주소)이 있으면 그걸, 없으면 현재 주소.
+  // 카카오 공유는 이 링크의 도메인이 [제품 링크 관리]에 등록돼 있어야 클릭 시 열린다.
+  function shareLink(){
+    return (SITE_URL && SITE_URL.indexOf('http') === 0) ? SITE_URL : location.href.split('#')[0];
+  }
   function kakaoShare(){
     if(!kakaoReady || !window.Kakao || !Kakao.Share){
       showToast('카카오톡 공유 설정이 필요합니다');
       return;
     }
-    var url = location.href.split('#')[0];
+    var url = shareLink();
     var ogEl = document.querySelector('meta[property="og:image"]');
     var img = ogEl ? ogEl.getAttribute('content') : '';
     try{
@@ -1302,7 +1311,7 @@
   }
 
   function initShare(){
-    var url = location.href.split('#')[0];
+    var url = shareLink();
     var title = DATA.groom.name + ' · ' + DATA.bride.name + ' 결혼식에 초대합니다';
     var text = formatDateTimeKR(parseWeddingDate()) + ' · ' + DATA.venueName;
     var sheet = document.getElementById('shareSheet');
