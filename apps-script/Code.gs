@@ -79,6 +79,17 @@ function driveImageUrl(fileId) {
   return 'https://lh3.googleusercontent.com/d/' + fileId + '=w1600';
 }
 
+/* 예식 일시 정규화 → 항상 'YYYY-MM-DDTHH:mm' 형식으로 반환.
+   구글시트가 "2026-10-10T11:30" 문자열을 Date 값으로 자동 변환해버리는 문제를 흡수한다.
+   (Date로 저장되면 getValues()가 Date 객체를 돌려주고, 그대로 String()하면
+    "Sat Oct 10 2026 ..." 가 되어 datetime-local 입력칸이 값을 잃는다.) */
+function normalizeDateTime(v) {
+  if (v instanceof Date) {
+    return Utilities.formatDate(v, Session.getScriptTimeZone(), "yyyy-MM-dd'T'HH:mm");
+  }
+  return String(v == null ? '' : v).trim();
+}
+
 /* 필요한 탭이 없으면 생성하고, 비어 있으면 기본값을 심는다 */
 function ensureSheets() {
   var book = ss();
@@ -198,7 +209,7 @@ function getData() {
     greeting: String(m.greeting || ''),
     groom: { name: String(m.groom_name || ''), order: String(m.groom_order || ''), father: String(m.groom_father || ''), mother: String(m.groom_mother || '') },
     bride: { name: String(m.bride_name || ''), order: String(m.bride_order || ''), father: String(m.bride_father || ''), mother: String(m.bride_mother || '') },
-    weddingDateTime: String(m.weddingDateTime || ''),
+    weddingDateTime: normalizeDateTime(m.weddingDateTime),
     venueName: String(m.venueName || ''),
     venueAddress: String(m.venueAddress || ''),
     transport: { car: String(m.transport_car || ''), transit: String(m.transport_transit || ''), airport: String(m.transport_airport || '') },
@@ -218,11 +229,15 @@ function saveText(data) {
   var cur = readInfoMap();
   var nextVer = Number(cur.dataVersion || 0) + 1;
 
+  // 예식 일시가 빈 값으로 들어오면 기존 값을 유지(빈 날짜 저장 방지 → 캘린더/D-day 보호)
+  var wdt = str(data.weddingDateTime, 40);
+  if (!wdt) wdt = normalizeDateTime(cur.weddingDateTime) || '2026-10-10T11:30';
+
   writeInfo({
     greeting: str(data.greeting, 2000),
     groom_name: str(g.name, 40), groom_order: str(g.order, 40), groom_father: str(g.father, 40), groom_mother: str(g.mother, 40),
     bride_name: str(b.name, 40), bride_order: str(b.order, 40), bride_father: str(b.father, 40), bride_mother: str(b.mother, 40),
-    weddingDateTime: str(data.weddingDateTime, 40),
+    weddingDateTime: wdt,
     venueName: str(data.venueName, 120),
     venueAddress: str(data.venueAddress, 200),
     transport_car: str(t.car, 2000), transport_transit: str(t.transit, 2000), transport_airport: str(t.airport, 2000),
